@@ -47,15 +47,24 @@ def get_topK_result(nmr_feature, smiles_feature, topK):
     indices = []
     scores = []
     with torch.no_grad():
+        indices = []
+        scores = []
         for i in tqdm(nmr_feature):
-            nmr_smiles_distances_tmp = (
-                i.unsqueeze(0) @ smiles_feature.t()).cpu()
-        scores_, indices_ = nmr_smiles_distances_tmp.topk(topK,
-                                                          dim=1,
-                                                          largest=True,
-                                                          sorted=True)
-        indices.append(indices_)
-        scores.append(scores_)
+            # 将 i 移到 GPU 上与 smiles_feature 相同的设备
+            i_gpu = i.unsqueeze(0).to(smiles_feature.device)
+            
+            # 在 GPU 上进行矩阵乘法
+            nmr_smiles_distances_tmp = i_gpu @ smiles_feature.t()
+            
+            # 在 GPU 上进行 topk 操作
+            scores_, indices_ = nmr_smiles_distances_tmp.topk(topK,
+                                                            dim=1,
+                                                            largest=True,
+                                                            sorted=True)
+            
+            # 将结果移回 CPU 并添加到列表
+            indices.append(indices_.cpu())
+            scores.append(scores_.cpu())
     indices = torch.cat(indices, 0)
     scores = torch.cat(scores, 0)
     return indices, scores
@@ -67,13 +76,23 @@ if __name__ == "__main__":
     pretrain_model_path = "models/2_5_w_model/8.pth"
     model_inference = ModelInference(config_path=config_path,
                                      pretrain_model_path=pretrain_model_path,
-                                     device="cpu")
+                                     device="cuda")
 
     # C(O)C1=CC2(C)CCC3C(C)CCC32C1C
-    nmr_list = [
-        17.7, 20.0, 22.9, 28.9, 29.9, 35.8, 37.6, 39.7, 50.9, 57.3, 61.3, 64.1,
-        64.9, 134.0, 146.7
-    ]
+    # nmr_list = [
+    #     17.7, 20.0, 22.9, 28.9, 29.9, 35.8, 37.6, 39.7, 50.9, 57.3, 61.3, 64.1,
+    #     64.9, 134.0, 146.7
+    # ]
+    nmr_list = [173.69,136.21,
+128.55,	
+128.17,
+128.16,
+66.06,
+34.32,	
+31.31,	
+24.67,
+22.31,
+13.89]
 
     # Extract NMR spectral feature vector 
     nmr_feature = model_inference.nmr_encode(nmr_list)
